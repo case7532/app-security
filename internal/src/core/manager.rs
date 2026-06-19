@@ -67,12 +67,24 @@ impl ModuleManager {
     }
 
     pub async fn start_all(&self) -> Result<(), String> {
-        let mut ids: Vec<String> = self.modules.keys().cloned().collect();
-        ids.sort();
+        // Collect dependency information from each module.
+        let mut deps: HashMap<String, Vec<String>> = HashMap::new();
+        for (id, module) in &self.modules {
+            let module = module.read().await;
+            deps.insert(
+                id.clone(),
+                module.dependencies().into_iter().map(String::from).collect(),
+            );
+        }
 
-        for id in ids {
+        // Determine startup order via topological sort.
+        let order = super::toposort::topological_sort(&deps)?;
+
+        // Start modules in dependency-respecting order.
+        for id in order {
             self.start_module(&id).await?;
         }
+
         Ok(())
     }
 
