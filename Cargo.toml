@@ -44,3 +44,7 @@ path = "tests/unit/platform/validation_test.rs"
 [[test]]
 name = "vpn_test"
 path = "tests/unit/network/vpn_test.rs"
+
+[[test]]
+name = "killswitch_test"
+path = "tests/unit/network/killswitch_test.rs"
