@@ -1,0 +1,19 @@
+[
+  {
+    "id": "layer:documentation",
+    "name": "Documentation",
+    "description": "Project design documents defining the vision, threat model, feature requirements, architecture proposal, and implementation analysis for the Public WiFi/LAN Security App.",
+    "nodeIds": [
+      "document:README.md",
+      "document:5W1H-ANALYSIS.md"
+    ]
+  },
+  {
+    "id": "layer:config",
+    "name": "Configuration",
+    "description": "Local Claude tooling configuration for the project development environment.",
+    "nodeIds": [
+      "config:.claude/settings.local.json"
+    ]
+  }
+]

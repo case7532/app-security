@@ -1,0 +1,14 @@
+{
+  "scriptCompleted": true,
+  "stats": {
+    "filesScanned": 4,
+    "filesWithImports": 0,
+    "totalEdges": 0
+  },
+  "importMap": {
+    ".claude/settings.local.json": [],
+    ".understand-anything/intermediate/layers.json": [],
+    "5W1H-ANALYSIS.md": [],
+    "README.md": []
+  }
+}

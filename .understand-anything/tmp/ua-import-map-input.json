@@ -1,0 +1,9 @@
+{
+  "projectRoot": "/Users/residency6250/HomeLab/app-security",
+  "files": [
+    {"path": ".claude/settings.local.json", "language": "json", "fileCategory": "config"},
+    {"path": ".understand-anything/intermediate/layers.json", "language": "json", "fileCategory": "config"},
+    {"path": "5W1H-ANALYSIS.md", "language": "markdown", "fileCategory": "docs"},
+    {"path": "README.md", "language": "markdown", "fileCategory": "docs"}
+  ]
+}

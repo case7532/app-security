@@ -1,0 +1,2083 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "app-security",
+    "languages": [
+      "Go"
+    ],
+    "frameworks": [
+      "WireGuard",
+      "Tauri",
+      "libpcap",
+      "gopacket"
+    ],
+    "description": "Desktop security application that protects users on public WiFi/LAN networks by providing network protection (VPN, kill switch, evil twin/ARP spoof detection, firewall, DNS encryption) and device anonymity (MAC randomization, hostname spoofing, traffic obfuscation, fingerprint masking, DNS leak prevention). Pre-implementation project with detailed business requirements and architecture planning.",
+    "analyzedAt": "2026-06-19T00:00:00Z",
+    "gitCommitHash": "N/A"
+  },
+  "nodes": [
+    {
+      "id": "domain:network-protection",
+      "type": "domain",
+      "name": "Network Protection",
+      "summary": "Provides active defense against network-level threats on public WiFi/LAN. Includes VPN auto-connect, kill switch, firewall hardening, and DNS encryption to prevent MITM attacks, packet sniffing, DNS spoofing, and traffic interception.",
+      "tags": [
+        "network",
+        "security",
+        "vpn",
+        "firewall",
+        "dns"
+      ],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": [
+          "VPN tunnel",
+          "Kill switch",
+          "Firewall rules",
+          "DNS resolver",
+          "Network interface"
+        ],
+        "businessRules": [
+          "VPN must activate automatically when connecting to an unknown/untrusted network",
+          "Kill switch must block all internet traffic if VPN connection drops",
+          "Firewall rules must be applied on connection and reverted on app shutdown",
+          "DNS queries must never leak outside the encrypted tunnel",
+          "All network changes must save original state for rollback on exit"
+        ],
+        "crossDomainInteractions": [
+          "Feeds network state to Detection domain for threat analysis",
+          "Sends threat alerts to Alert System domain",
+          "Reads trust scores from Detection domain to determine VPN activation",
+          "Must coordinate with Anonymity domain to avoid conflicts when changing network state"
+        ]
+      }
+    },
+    {
+      "id": "domain:device-anonymity",
+      "type": "domain",
+      "name": "Device Anonymity",
+      "summary": "Hides device identity and prevents tracking on public networks. Includes MAC address randomization, hostname spoofing, traffic padding, multi-hop proxy routing, browser fingerprint masking, and DNS leak prevention to make the device unidentifiable to network observers.",
+      "tags": [
+        "anonymity",
+        "privacy",
+        "mac-spoofing",
+        "fingerprinting"
+      ],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": [
+          "MAC address",
+          "Hostname",
+          "TLS fingerprint",
+          "HTTP headers",
+          "DNS tunnel",
+          "Traffic patterns"
+        ],
+        "businessRules": [
+          "Original MAC and hostname must be saved before spoofing and restored on app exit",
+          "MAC randomization must generate vendor-pliant random addresses",
+          "Traffic padding must not exceed 5% network overhead",
+          "DNS queries must be routed through the VPN tunnel only",
+          "Fingerprint masking must produce a common/generic browser profile"
+        ],
+        "crossDomainInteractions": [
+          "MAC/hostname changes are part of the network stack, coordinated with Network Protection",
+          "DNS leak prevention relies on the VPN tunnel from Network Protection domain",
+          "Alert System is notified if anonymization modules fail or encounter errors"
+        ]
+      }
+    },
+    {
+      "id": "domain:threat-detection",
+      "type": "domain",
+      "name": "Threat Detection",
+      "summary": "Passively and actively monitors the local network for attacks in real time. Detects evil twin access points, ARP spoofing attacks, DNS spoofing attempts, and computes a network trust score to guide automatic protection decisions.",
+      "tags": [
+        "detection",
+        "monitoring",
+        "arp",
+        "evil-twin",
+        "trust-scoring"
+      ],
+      "complexity": "complex",
+      "domainMeta": {
+        "entities": [
+          "ARP table",
+          "Access point beacon",
+          "DNS response",
+          "Trust score",
+          "Packet capture"
+        ],
+        "businessRules": [
+          "Evil twin detection must compare beacon SSID/BSSID against known networks",
+          "ARP spoof detection must flag duplicate IP-MAC mappings or gateway MAC changes",
+          "Trust score must aggregate multiple signals (encryption type, known AP, packet anomalies)",
+          "Detection must require libpcap/npcap and root/admin privileges",
+          "False positives must be handled via configurable thresholds and user whitelists"
+        ],
+        "crossDomainInteractions": [
+          "Triggers automatic VPN activation in Network Protection when trust score is low",
+          "Sends real-time alerts to Alert System when threats are detected",
+          "Detection results feed into the trust scoring algorithm"
+        ]
+      }
+    },
+    {
+      "id": "domain:alert-system",
+      "type": "domain",
+      "name": "Alert System",
+      "summary": "Provides real-time notifications and logging when threats are detected or protection modules encounter issues. Delivers alerts via system tray notifications, logs events, and maintains a history of detected incidents.",
+      "tags": [
+        "alerts",
+        "notifications",
+        "logging",
+        "system-tray"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entities": [
+          "Alert notification",
+          "Event log",
+          "Incident history",
+          "System tray icon"
+        ],
+        "businessRules": [
+          "Alerts must be delivered in real time with no perceptible delay",
+          "Critical alerts (MITM active, VPN down with kill switch) must be persistent until acknowledged",
+          "All events must be logged with timestamps for incident review",
+          "Alert severity levels must be configurable by the user"
+        ],
+        "crossDomainInteractions": [
+          "Receives threat events from Detection domain (evil twin, ARP spoof)",
+          "Receives status events from Network Protection (VPN connected/disconnected, kill switch triggered)",
+          "Receives failure events from Anonymity domain (MAC randomization failed)"
+        ]
+      }
+    },
+    {
+      "id": "domain:core-engine",
+      "type": "domain",
+      "name": "Core Engine",
+      "summary": "Manages the application lifecycle, module orchestration, configuration, and system tray UI. Coordinates startup/shutdown of all security modules, handles OS privilege escalation, and provides the user interface for monitoring and control.",
+      "tags": [
+        "core",
+        "lifecycle",
+        "configuration",
+        "ui",
+        "system-tray"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entities": [
+          "Application state",
+          "Module manager",
+          "Configuration",
+          "System tray",
+          "User preferences"
+        ],
+        "businessRules": [
+          "App must request and verify admin/root privileges at startup",
+          "Each module must be independently activatable/deactivatable without affecting others",
+          "Configuration changes must persist across app restarts",
+          "On app crash or forced exit, the kill switch must have a failsafe to restore normal network",
+          "The UI must display current protection status, active threats, and trust score"
+        ],
+        "crossDomainInteractions": [
+          "Starts and stops all modules in Network Protection, Anonymity, Detection, and Alert domains",
+          "Propagates configuration changes to all modules",
+          "Collects status from all domains for UI display"
+        ]
+      }
+    },
+    {
+      "id": "flow:vpn-auto-connect",
+      "type": "flow",
+      "name": "VPN Auto-Connect",
+      "summary": "Automatically detects when the device joins an untrusted network and establishes a WireGuard VPN tunnel to encrypt all traffic before any data is transmitted.",
+      "tags": [
+        "vpn",
+        "wireguard",
+        "auto-connect"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "network-interface-change-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:kill-switch",
+      "type": "flow",
+      "name": "Kill Switch",
+      "summary": "Monitors VPN connection health and immediately blocks all outbound internet traffic if the VPN tunnel drops, preventing any unencrypted data from leaking.",
+      "tags": [
+        "kill-switch",
+        "traffic-blocking",
+        "fail-safe"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "vpn-connection-drop-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:firewall-hardening",
+      "type": "flow",
+      "name": "Firewall Hardening",
+      "summary": "Scans current firewall rules, saves the original state, applies hardened rules to block unnecessary incoming ports and prevent port scanning, and reverts on app exit.",
+      "tags": [
+        "firewall",
+        "port-blocking",
+        "hardening"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app-startup-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:dns-encryption",
+      "type": "flow",
+      "name": "DNS Encryption",
+      "summary": "Intercepts all DNS queries from the system and routes them through DNS-over-HTTPS or DNS-over-TLS to prevent DNS spoofing and eavesdropping.",
+      "tags": [
+        "dns",
+        "doh",
+        "dot",
+        "encryption"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "dns-query-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:mac-randomization",
+      "type": "flow",
+      "name": "MAC Address Randomization",
+      "summary": "Reads the current MAC address, saves it, generates a vendor-compliant random MAC address, applies it to the network interface, and restores the original on app exit.",
+      "tags": [
+        "mac",
+        "randomization",
+        "anonymity"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app-startup-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:hostname-spoofing",
+      "type": "flow",
+      "name": "Hostname Spoofing",
+      "summary": "Reads the current hostname, saves it, generates a generic random hostname, applies it to hide the device from DHCP and mDNS discovery, and restores on exit.",
+      "tags": [
+        "hostname",
+        "spoofing",
+        "dhcp",
+        "anonymity"
+      ],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "app-startup-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:fingerprint-masking",
+      "type": "flow",
+      "name": "Browser Fingerprint Masking",
+      "summary": "Modifies TLS ClientHello messages and HTTP headers using uTLS to present a generic browser fingerprint, preventing device identification via TLS or HTTP header analysis.",
+      "tags": [
+        "fingerprint",
+        "tls",
+        "utls",
+        "anonymity"
+      ],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "tls-handshake-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:dns-leak-prevention",
+      "type": "flow",
+      "name": "DNS Leak Prevention",
+      "summary": "Enforces that all DNS queries only travel through the VPN tunnel, blocks the system DNS resolver, monitors DNS packets for leaks, and alerts if any DNS query escapes the tunnel.",
+      "tags": [
+        "dns-leak",
+        "vpn",
+        "privacy"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "dns-packet-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:evil-twin-detection",
+      "type": "flow",
+      "name": "Evil Twin Detection",
+      "summary": "Captures WiFi beacon frames, compares SSID/BSSID against known networks, checks for signal strength anomalies, classifies threat level, and triggers alerts for suspected evil twin access points.",
+      "tags": [
+        "evil-twin",
+        "detection",
+        "wifi",
+        "beacon"
+      ],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "wifi-beacon-capture",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:arp-spoof-detection",
+      "type": "flow",
+      "name": "ARP Spoof Detection",
+      "summary": "Captures ARP packets, builds and monitors the ARP table for duplicate IP-MAC mappings and gateway MAC changes, and alerts when ARP spoofing is suspected.",
+      "tags": [
+        "arp",
+        "spoofing",
+        "detection",
+        "mitm"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "arp-packet-capture",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:network-trust-scoring",
+      "type": "flow",
+      "name": "Network Trust Scoring",
+      "summary": "Collects network metadata (encryption type, known AP history, packet anomalies), computes a composite trust score, and recommends a protection level to guide automatic VPN and firewall activation.",
+      "tags": [
+        "trust-score",
+        "scoring",
+        "assessment"
+      ],
+      "complexity": "complex",
+      "domainMeta": {
+        "entryPoint": "network-join-event",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:realtime-alerting",
+      "type": "flow",
+      "name": "Real-Time Alerting",
+      "summary": "Receives threat events from detection and protection modules, classifies severity, displays system tray notifications, and writes all events to an persistent event log.",
+      "tags": [
+        "alerts",
+        "notifications",
+        "logging"
+      ],
+      "complexity": "simple",
+      "domainMeta": {
+        "entryPoint": "threat-event-bus",
+        "entryType": "event"
+      }
+    },
+    {
+      "id": "flow:application-lifecycle",
+      "type": "flow",
+      "name": "Application Lifecycle",
+      "summary": "Manages the full application lifecycle from requesting admin privileges, loading configuration, initializing all security modules, running the system tray UI, through graceful shutdown with full network state revert.",
+      "tags": [
+        "lifecycle",
+        "startup",
+        "shutdown",
+        "orchestration"
+      ],
+      "complexity": "moderate",
+      "domainMeta": {
+        "entryPoint": "app-launch",
+        "entryType": "cli"
+      }
+    },
+    {
+      "id": "step:vpn-auto-connect:detect-network-change",
+      "type": "step",
+      "name": "Detect Network Change",
+      "summary": "Monitors OS network interfaces for connection events (WiFi join, Ethernet plug-in) to trigger the VPN auto-connect flow.",
+      "tags": [
+        "network",
+        "event",
+        "monitoring"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:vpn-auto-connect:evaluate-network-trust",
+      "type": "step",
+      "name": "Evaluate Network Trust",
+      "summary": "Consults the trust scoring module to determine whether the newly joined network is trusted or requires VPN activation.",
+      "tags": [
+        "trust",
+        "evaluation"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:vpn-auto-connect:establish-wireguard-tunnel",
+      "type": "step",
+      "name": "Establish WireGuard Tunnel",
+      "summary": "Initiates a WireGuard VPN connection using the configured server credentials and cryptographic keys.",
+      "tags": [
+        "wireguard",
+        "vpn",
+        "tunnel"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:vpn-auto-connect:verify-tunnel-active",
+      "type": "step",
+      "name": "Verify Tunnel Active",
+      "summary": "Confirms the VPN tunnel is established by checking interface status and performing a connectivity test through the tunnel.",
+      "tags": [
+        "verification",
+        "connectivity"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:vpn-auto-connect:redirect-traffic-through-vpn",
+      "type": "step",
+      "name": "Redirect Traffic Through VPN",
+      "summary": "Updates system routing table to direct all outbound traffic through the VPN tunnel interface.",
+      "tags": [
+        "routing",
+        "traffic"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:kill-switch:monitor-vpn-connection",
+      "type": "step",
+      "name": "Monitor VPN Connection",
+      "summary": "Continuously polls the VPN tunnel interface status and sends keepalive probes to detect connection health.",
+      "tags": [
+        "monitoring",
+        "health-check"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:kill-switch:detect-vpn-drop",
+      "type": "step",
+      "name": "Detect VPN Drop",
+      "summary": "Identifies when the VPN tunnel goes down due to server failure, network change, or timeout.",
+      "tags": [
+        "detection",
+        "failure"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:kill-switch:block-all-outbound-traffic",
+      "type": "step",
+      "name": "Block All Outbound Traffic",
+      "summary": "Immediately applies firewall rules to block all outbound internet traffic except VPN reconnection attempts, preventing unencrypted data leaks.",
+      "tags": [
+        "firewall",
+        "blocking",
+        "fail-safe"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:kill-switch:notify-user-and-log",
+      "type": "step",
+      "name": "Notify User and Log",
+      "summary": "Sends a critical alert to the user via system tray notification that the kill switch has been activated, and logs the event.",
+      "tags": [
+        "alert",
+        "notification",
+        "logging"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:kill-switch:attempt-vpn-reconnect",
+      "type": "step",
+      "name": "Attempt VPN Reconnect",
+      "summary": "Periodically attempts to re-establish the VPN tunnel. If successful, restores normal traffic routing and deactivates the kill switch.",
+      "tags": [
+        "reconnection",
+        "recovery"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/vpn/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:firewall-hardening:scan-current-rules",
+      "type": "step",
+      "name": "Scan Current Rules",
+      "summary": "Reads the existing OS firewall ruleset to understand the current security posture before making changes.",
+      "tags": [
+        "firewall",
+        "scanning"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/firewall/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:firewall-hardening:save-original-state",
+      "type": "step",
+      "name": "Save Original State",
+      "summary": "Persists the current firewall configuration so it can be fully restored when the app shuts down or crashes.",
+      "tags": [
+        "state",
+        "persistence"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/firewall/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:firewall-hardening:apply-hardened-rules",
+      "type": "step",
+      "name": "Apply Hardened Rules",
+      "summary": "Applies a set of hardened firewall rules that block unnecessary incoming ports and restrict traffic to known-safe destinations.",
+      "tags": [
+        "firewall",
+        "hardening"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/firewall/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:firewall-hardening:block-incoming-ports",
+      "type": "step",
+      "name": "Block Incoming Ports",
+      "summary": "Specifically blocks common attack vectors: open ports that respond to port scanning, SMB, RDP, and other commonly exploited services.",
+      "tags": [
+        "ports",
+        "blocking",
+        "security"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/firewall/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:firewall-hardening:revert-on-exit",
+      "type": "step",
+      "name": "Revert on Exit",
+      "summary": "Restores the original firewall ruleset from the saved state when the application shuts down or encounters a fatal error.",
+      "tags": [
+        "revert",
+        "cleanup"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/firewall/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-encryption:intercept-dns-queries",
+      "type": "step",
+      "name": "Intercept DNS Queries",
+      "summary": "Hooks into the OS DNS resolution path to intercept all outgoing DNS queries before they reach the system resolver.",
+      "tags": [
+        "dns",
+        "interception"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-encryption:route-through-doh-dot",
+      "type": "step",
+      "name": "Route Through DoH/DoT",
+      "summary": "Sends the intercepted DNS query over an encrypted DNS-over-HTTPS or DNS-over-TLS connection to the configured resolver.",
+      "tags": [
+        "doh",
+        "dot",
+        "encryption"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-encryption:validate-dns-response",
+      "type": "step",
+      "name": "Validate DNS Response",
+      "summary": "Validates the DNS response for integrity and checks for signs of DNS spoofing or tampering.",
+      "tags": [
+        "validation",
+        "security"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-encryption:cache-and-return",
+      "type": "step",
+      "name": "Cache and Return",
+      "summary": "Caches the validated DNS response locally and returns it to the requesting application.",
+      "tags": [
+        "caching",
+        "performance"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:mac-randomization:read-current-mac",
+      "type": "step",
+      "name": "Read Current MAC",
+      "summary": "Queries the OS network interface to read the current hardware MAC address of the active network adapter.",
+      "tags": [
+        "mac",
+        "reading"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/mac/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:mac-randomization:save-original-mac",
+      "type": "step",
+      "name": "Save Original MAC",
+      "summary": "Persists the original MAC address to ensure it can be restored when the app exits or crashes.",
+      "tags": [
+        "mac",
+        "persistence"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/mac/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:mac-randomization:generate-random-mac",
+      "type": "step",
+      "name": "Generate Random MAC",
+      "summary": "Generates a new random MAC address with a locally-administered bit set, using a random vendor OUI prefix to appear as a common device.",
+      "tags": [
+        "mac",
+        "randomization",
+        "generation"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/anonymity/mac/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:mac-randomization:apply-new-mac",
+      "type": "step",
+      "name": "Apply New MAC",
+      "summary": "Disables the network interface, applies the new MAC address via OS-specific syscalls, and re-enables the interface.",
+      "tags": [
+        "mac",
+        "application",
+        "os-specific"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/anonymity/mac/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:mac-randomization:verify-change",
+      "type": "step",
+      "name": "Verify Change",
+      "summary": "Reads back the MAC address from the interface to confirm the randomization was successfully applied.",
+      "tags": [
+        "mac",
+        "verification"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/mac/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:mac-randomization:restore-on-exit",
+      "type": "step",
+      "name": "Restore on Exit",
+      "summary": "Restores the original MAC address from saved state when the application shuts down.",
+      "tags": [
+        "mac",
+        "restore",
+        "cleanup"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/mac/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:hostname-spoofing:read-current-hostname",
+      "type": "step",
+      "name": "Read Current Hostname",
+      "summary": "Reads the current system hostname that would be exposed via DHCP requests and mDNS announcements.",
+      "tags": [
+        "hostname",
+        "reading"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/hostname/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:hostname-spoofing:save-original-hostname",
+      "type": "step",
+      "name": "Save Original Hostname",
+      "summary": "Persists the original hostname for restoration when the application exits.",
+      "tags": [
+        "hostname",
+        "persistence"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/hostname/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:hostname-spoofing:generate-random-hostname",
+      "type": "step",
+      "name": "Generate Random Hostname",
+      "summary": "Generates a generic hostname (e.g., 'ubuntu-desktop', 'android-phone') that does not reveal the actual device identity.",
+      "tags": [
+        "hostname",
+        "generation"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/hostname/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:hostname-spoofing:apply-hostname-change",
+      "type": "step",
+      "name": "Apply Hostname Change",
+      "summary": "Sets the new hostname at the OS level so DHCP and mDNS use the spoofed name.",
+      "tags": [
+        "hostname",
+        "application"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/anonymity/hostname/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:hostname-spoofing:restore-on-exit",
+      "type": "step",
+      "name": "Restore on Exit",
+      "summary": "Restores the original hostname from saved state when the application shuts down.",
+      "tags": [
+        "hostname",
+        "restore",
+        "cleanup"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/anonymity/hostname/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:fingerprint-masking:intercept-tls-client-hello",
+      "type": "step",
+      "name": "Intercept TLS Client Hello",
+      "summary": "Uses uTLS to intercept outgoing TLS handshakes and replace the ClientHello with a generic browser fingerprint profile.",
+      "tags": [
+        "tls",
+        "fingerprint",
+        "utls"
+      ],
+      "complexity": "complex",
+      "filePath": "internal/anonymity/fingerprint/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:fingerprint-masking:modify-http-headers",
+      "type": "step",
+      "name": "Modify HTTP Headers",
+      "summary": "Strips or modifies identifying HTTP headers (User-Agent, Accept-Language, etc.) to present a generic browser profile.",
+      "tags": [
+        "http",
+        "headers",
+        "anonymity"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/anonymity/fingerprint/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:fingerprint-masking:apply-generic-profile",
+      "type": "step",
+      "name": "Apply Generic Profile",
+      "summary": "Applies a consistent generic browser fingerprint profile that matches common browser configurations, avoiding unique combinations.",
+      "tags": [
+        "profile",
+        "generic",
+        "anonymity"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/anonymity/fingerprint/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:fingerprint-masking:validate-masking",
+      "type": "step",
+      "name": "Validate Masking",
+      "summary": "Tests the applied fingerprint against known fingerprinting services to verify the device is not uniquely identifiable.",
+      "tags": [
+        "validation",
+        "testing"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/anonymity/fingerprint/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-leak-prevention:enforce-vpn-only-dns",
+      "type": "step",
+      "name": "Enforce VPN-Only DNS",
+      "summary": "Configures the system to only accept DNS queries through the VPN tunnel interface, blocking all other DNS paths.",
+      "tags": [
+        "dns",
+        "vpn",
+        "enforcement"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-leak-prevention:block-system-dns",
+      "type": "step",
+      "name": "Block System DNS",
+      "summary": "Blocks the OS default DNS resolver (typically port 53 UDP/TCP) from being used directly, forcing all queries through the encrypted tunnel.",
+      "tags": [
+        "dns",
+        "blocking",
+        "firewall"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-leak-prevention:monitor-dns-packets",
+      "type": "step",
+      "name": "Monitor DNS Packets",
+      "summary": "Uses packet capture to continuously monitor for any DNS packets attempting to leave the system outside the VPN tunnel.",
+      "tags": [
+        "dns",
+        "monitoring",
+        "packet-capture"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/network/dns/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:dns-leak-prevention:alert-on-leak-attempt",
+      "type": "step",
+      "name": "Alert on Leak Attempt",
+      "summary": "Triggers an immediate alert if any DNS query is detected outside the VPN tunnel, indicating a potential DNS leak.",
+      "tags": [
+        "dns",
+        "alert",
+        "leak"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:evil-twin-detection:capture-beacon-frames",
+      "type": "step",
+      "name": "Capture Beacon Frames",
+      "summary": "Uses libpcap to capture WiFi beacon frames broadcast by nearby access points, extracting SSID, BSSID, signal strength, and encryption details.",
+      "tags": [
+        "wifi",
+        "beacon",
+        "capture"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/eviltwin/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:evil-twin-detection:compare-ssid-bssid",
+      "type": "step",
+      "name": "Compare SSID/BSSID",
+      "summary": "Compares captured beacon SSID and BSSID against the currently connected network and any known/saved networks to detect duplicates with different BSSIDs.",
+      "tags": [
+        "comparison",
+        "detection"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/eviltwin/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:evil-twin-detection:check-signal-strength-anomaly",
+      "type": "step",
+      "name": "Check Signal Strength Anomaly",
+      "summary": "Analyzes signal strength patterns for anomalies such as a fake AP with unusually strong signal compared to the legitimate AP.",
+      "tags": [
+        "signal",
+        "anomaly",
+        "analysis"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/eviltwin/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:evil-twin-detection:classify-threat-level",
+      "type": "step",
+      "name": "Classify Threat Level",
+      "summary": "Combines SSID/BSSID comparison and signal analysis results to classify the evil twin threat as low, medium, or high confidence.",
+      "tags": [
+        "classification",
+        "threat-level"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/eviltwin/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:evil-twin-detection:trigger-alert",
+      "type": "step",
+      "name": "Trigger Alert",
+      "summary": "Sends a high-priority alert to the Alert System with details about the suspected evil twin AP.",
+      "tags": [
+        "alert",
+        "notification"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:arp-spoof-detection:capture-arp-packets",
+      "type": "step",
+      "name": "Capture ARP Packets",
+      "summary": "Uses libpcap to capture all ARP request and reply packets on the local network segment.",
+      "tags": [
+        "arp",
+        "capture",
+        "packet-capture"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/arp/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:arp-spoof-detection:build-arp-table",
+      "type": "step",
+      "name": "Build ARP Table",
+      "summary": "Maintains a real-time ARP table mapping IP addresses to MAC addresses observed on the local network.",
+      "tags": [
+        "arp",
+        "table",
+        "monitoring"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/arp/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:arp-spoof-detection:check-duplicate-ip-mac",
+      "type": "step",
+      "name": "Check Duplicate IP-MAC",
+      "summary": "Detects when the same IP address is associated with multiple MAC addresses, which is a strong indicator of ARP spoofing.",
+      "tags": [
+        "arp",
+        "spoofing",
+        "detection"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/arp/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:arp-spoof-detection:verify-gateway-mac",
+      "type": "step",
+      "name": "Verify Gateway MAC",
+      "summary": "Checks that the gateway IP's MAC address remains consistent and matches the expected value, flagging changes as potential spoofing.",
+      "tags": [
+        "arp",
+        "gateway",
+        "verification"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/arp/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:arp-spoof-detection:alert-and-log",
+      "type": "step",
+      "name": "Alert and Log",
+      "summary": "Sends an alert to the Alert System with ARP spoof details and logs the detection event for incident review.",
+      "tags": [
+        "alert",
+        "logging"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:network-trust-scoring:collect-network-metadata",
+      "type": "step",
+      "name": "Collect Network Metadata",
+      "summary": "Gathers network metadata including SSID, BSSID, encryption type, signal strength, connected clients count, and network history.",
+      "tags": [
+        "metadata",
+        "collection"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/detection/scoring/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:network-trust-scoring:evaluate-encryption-type",
+      "type": "step",
+      "name": "Evaluate Encryption Type",
+      "summary": "Assesses the network's encryption (WPA3, WPA2, WEP, open) and assigns a trust contribution based on encryption strength.",
+      "tags": [
+        "encryption",
+        "evaluation"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/detection/scoring/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:network-trust-scoring:check-known-networks",
+      "type": "step",
+      "name": "Check Known Networks",
+      "summary": "Compares the current network against a user-maintained list of known/trusted networks to boost or reduce the trust score.",
+      "tags": [
+        "known-networks",
+        "whitelist"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/detection/scoring/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:network-trust-scoring:analyze-packet-anomalies",
+      "type": "step",
+      "name": "Analyze Packet Anomalies",
+      "summary": "Examines captured packet patterns for anomalies such as unusual ARP traffic, broadcast storms, or abnormal DNS responses that reduce trust.",
+      "tags": [
+        "anomaly",
+        "packet-analysis"
+      ],
+      "complexity": "complex",
+      "filePath": "internal/detection/scoring/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:network-trust-scoring:compute-trust-score",
+      "type": "step",
+      "name": "Compute Trust Score",
+      "summary": "Aggregates all trust factors (encryption, known network, packet anomalies) into a composite 0-100 trust score.",
+      "tags": [
+        "scoring",
+        "computation"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/detection/scoring/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:network-trust-scoring:recommend-protection-level",
+      "type": "step",
+      "name": "Recommend Protection Level",
+      "summary": "Translates the trust score into a recommended protection level (none, basic, full) that triggers appropriate VPN and firewall actions.",
+      "tags": [
+        "recommendation",
+        "protection"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/detection/scoring/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:realtime-alerting:receive-threat-event",
+      "type": "step",
+      "name": "Receive Threat Event",
+      "summary": "Subscribes to the internal event bus and receives threat events from all detection and protection modules.",
+      "tags": [
+        "event",
+        "bus",
+        "subscription"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:realtime-alerting:classify-severity",
+      "type": "step",
+      "name": "Classify Severity",
+      "summary": "Assigns a severity level (info, warning, critical) to each incoming event based on threat type and confidence.",
+      "tags": [
+        "classification",
+        "severity"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:realtime-alerting:show-system-tray-notification",
+      "type": "step",
+      "name": "Show System Tray Notification",
+      "summary": "Displays a desktop notification via the system tray with the alert message, severity color, and optional action buttons.",
+      "tags": [
+        "notification",
+        "system-tray",
+        "ui"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/ui/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:realtime-alerting:write-to-event-log",
+      "type": "step",
+      "name": "Write to Event Log",
+      "summary": "Persists the alert event with timestamp, severity, source module, and details to the local event log for incident history.",
+      "tags": [
+        "logging",
+        "persistence"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/alert/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:application-lifecycle:request-admin-privileges",
+      "type": "step",
+      "name": "Request Admin Privileges",
+      "summary": "Requests root/admin elevation at startup since most security modules require privileged access to manipulate network interfaces, firewall rules, and packet capture.",
+      "tags": [
+        "privilege",
+        "elevation",
+        "security"
+      ],
+      "complexity": "moderate",
+      "filePath": "cmd/app-security/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:application-lifecycle:load-configuration",
+      "type": "step",
+      "name": "Load Configuration",
+      "summary": "Reads the user's configuration file to determine which modules to enable, VPN server settings, DNS resolver preferences, and UI options.",
+      "tags": [
+        "configuration",
+        "loading"
+      ],
+      "complexity": "simple",
+      "filePath": "internal/core/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:application-lifecycle:initialize-modules",
+      "type": "step",
+      "name": "Initialize Modules",
+      "summary": "Creates and configures instances of all enabled security modules (VPN, firewall, DNS, detection, anonymization, alerts) based on the loaded configuration.",
+      "tags": [
+        "initialization",
+        "modules"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/core/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:application-lifecycle:start-system-tray",
+      "type": "step",
+      "name": "Start System Tray",
+      "summary": "Launches the system tray application with the dashboard showing current protection status, active threats, and trust score.",
+      "tags": [
+        "ui",
+        "system-tray",
+        "dashboard"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/ui/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:application-lifecycle:graceful-shutdown",
+      "type": "step",
+      "name": "Graceful Shutdown",
+      "summary": "Handles SIGTERM/SIGINT signals to cleanly shut down all modules in reverse dependency order, ensuring no network state is left modified.",
+      "tags": [
+        "shutdown",
+        "cleanup",
+        "signal"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/core/",
+      "lineRange": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step:application-lifecycle:revert-all-network-changes",
+      "type": "step",
+      "name": "Revert All Network Changes",
+      "summary": "Restores the original MAC address, hostname, firewall rules, and routing table to their pre-app state, ensuring the network is left clean.",
+      "tags": [
+        "revert",
+        "cleanup",
+        "network"
+      ],
+      "complexity": "moderate",
+      "filePath": "internal/core/",
+      "lineRange": [
+        0,
+        0
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "domain:network-protection",
+      "target": "flow:vpn-auto-connect",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:network-protection",
+      "target": "flow:kill-switch",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:network-protection",
+      "target": "flow:firewall-hardening",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:network-protection",
+      "target": "flow:dns-encryption",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:device-anonymity",
+      "target": "flow:mac-randomization",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:device-anonymity",
+      "target": "flow:hostname-spoofing",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:device-anonymity",
+      "target": "flow:fingerprint-masking",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:device-anonymity",
+      "target": "flow:dns-leak-prevention",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:threat-detection",
+      "target": "flow:evil-twin-detection",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:threat-detection",
+      "target": "flow:arp-spoof-detection",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:threat-detection",
+      "target": "flow:network-trust-scoring",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:alert-system",
+      "target": "flow:realtime-alerting",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:core-engine",
+      "target": "flow:application-lifecycle",
+      "type": "contains_flow",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:vpn-auto-connect",
+      "target": "step:vpn-auto-connect:detect-network-change",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:vpn-auto-connect",
+      "target": "step:vpn-auto-connect:evaluate-network-trust",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:vpn-auto-connect",
+      "target": "step:vpn-auto-connect:establish-wireguard-tunnel",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:vpn-auto-connect",
+      "target": "step:vpn-auto-connect:verify-tunnel-active",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:vpn-auto-connect",
+      "target": "step:vpn-auto-connect:redirect-traffic-through-vpn",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:kill-switch",
+      "target": "step:kill-switch:monitor-vpn-connection",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:kill-switch",
+      "target": "step:kill-switch:detect-vpn-drop",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:kill-switch",
+      "target": "step:kill-switch:block-all-outbound-traffic",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:kill-switch",
+      "target": "step:kill-switch:notify-user-and-log",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:kill-switch",
+      "target": "step:kill-switch:attempt-vpn-reconnect",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:firewall-hardening",
+      "target": "step:firewall-hardening:scan-current-rules",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:firewall-hardening",
+      "target": "step:firewall-hardening:save-original-state",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:firewall-hardening",
+      "target": "step:firewall-hardening:apply-hardened-rules",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:firewall-hardening",
+      "target": "step:firewall-hardening:block-incoming-ports",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:firewall-hardening",
+      "target": "step:firewall-hardening:revert-on-exit",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:dns-encryption",
+      "target": "step:dns-encryption:intercept-dns-queries",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:dns-encryption",
+      "target": "step:dns-encryption:route-through-doh-dot",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:dns-encryption",
+      "target": "step:dns-encryption:validate-dns-response",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:dns-encryption",
+      "target": "step:dns-encryption:cache-and-return",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:mac-randomization",
+      "target": "step:mac-randomization:read-current-mac",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:mac-randomization",
+      "target": "step:mac-randomization:save-original-mac",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:mac-randomization",
+      "target": "step:mac-randomization:generate-random-mac",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:mac-randomization",
+      "target": "step:mac-randomization:apply-new-mac",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:mac-randomization",
+      "target": "step:mac-randomization:verify-change",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:mac-randomization",
+      "target": "step:mac-randomization:restore-on-exit",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:hostname-spoofing",
+      "target": "step:hostname-spoofing:read-current-hostname",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:hostname-spoofing",
+      "target": "step:hostname-spoofing:save-original-hostname",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:hostname-spoofing",
+      "target": "step:hostname-spoofing:generate-random-hostname",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:hostname-spoofing",
+      "target": "step:hostname-spoofing:apply-hostname-change",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:hostname-spoofing",
+      "target": "step:hostname-spoofing:restore-on-exit",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:fingerprint-masking",
+      "target": "step:fingerprint-masking:intercept-tls-client-hello",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:fingerprint-masking",
+      "target": "step:fingerprint-masking:modify-http-headers",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:fingerprint-masking",
+      "target": "step:fingerprint-masking:apply-generic-profile",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:fingerprint-masking",
+      "target": "step:fingerprint-masking:validate-masking",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:dns-leak-prevention",
+      "target": "step:dns-leak-prevention:enforce-vpn-only-dns",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:dns-leak-prevention",
+      "target": "step:dns-leak-prevention:block-system-dns",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:dns-leak-prevention",
+      "target": "step:dns-leak-prevention:monitor-dns-packets",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:dns-leak-prevention",
+      "target": "step:dns-leak-prevention:alert-on-leak-attempt",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:evil-twin-detection",
+      "target": "step:evil-twin-detection:capture-beacon-frames",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:evil-twin-detection",
+      "target": "step:evil-twin-detection:compare-ssid-bssid",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:evil-twin-detection",
+      "target": "step:evil-twin-detection:check-signal-strength-anomaly",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:evil-twin-detection",
+      "target": "step:evil-twin-detection:classify-threat-level",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:evil-twin-detection",
+      "target": "step:evil-twin-detection:trigger-alert",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:arp-spoof-detection",
+      "target": "step:arp-spoof-detection:capture-arp-packets",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:arp-spoof-detection",
+      "target": "step:arp-spoof-detection:build-arp-table",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.4
+    },
+    {
+      "source": "flow:arp-spoof-detection",
+      "target": "step:arp-spoof-detection:check-duplicate-ip-mac",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "flow:arp-spoof-detection",
+      "target": "step:arp-spoof-detection:verify-gateway-mac",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:arp-spoof-detection",
+      "target": "step:arp-spoof-detection:alert-and-log",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:network-trust-scoring",
+      "target": "step:network-trust-scoring:collect-network-metadata",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:network-trust-scoring",
+      "target": "step:network-trust-scoring:evaluate-encryption-type",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:network-trust-scoring",
+      "target": "step:network-trust-scoring:check-known-networks",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:network-trust-scoring",
+      "target": "step:network-trust-scoring:analyze-packet-anomalies",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:network-trust-scoring",
+      "target": "step:network-trust-scoring:compute-trust-score",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:network-trust-scoring",
+      "target": "step:network-trust-scoring:recommend-protection-level",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:realtime-alerting",
+      "target": "step:realtime-alerting:receive-threat-event",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:realtime-alerting",
+      "target": "step:realtime-alerting:classify-severity",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:realtime-alerting",
+      "target": "step:realtime-alerting:show-system-tray-notification",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:realtime-alerting",
+      "target": "step:realtime-alerting:write-to-event-log",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "flow:application-lifecycle",
+      "target": "step:application-lifecycle:request-admin-privileges",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.2
+    },
+    {
+      "source": "flow:application-lifecycle",
+      "target": "step:application-lifecycle:load-configuration",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.3
+    },
+    {
+      "source": "flow:application-lifecycle",
+      "target": "step:application-lifecycle:initialize-modules",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "flow:application-lifecycle",
+      "target": "step:application-lifecycle:start-system-tray",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "flow:application-lifecycle",
+      "target": "step:application-lifecycle:graceful-shutdown",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "flow:application-lifecycle",
+      "target": "step:application-lifecycle:revert-all-network-changes",
+      "type": "flow_step",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "domain:network-protection",
+      "target": "domain:threat-detection",
+      "description": "Network Protection provides active tunnel/firewall state that Detection modules use to contextualize threats, and automatically activates VPN when Detection reports low trust scores or active attacks.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:network-protection",
+      "target": "domain:device-anonymity",
+      "description": "VPN tunnel provides the transport layer for DNS leak prevention. Network Protection and Anonymity must coordinate changes to the network stack (MAC, routing, DNS) to avoid conflicts.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:threat-detection",
+      "target": "domain:alert-system",
+      "description": "Detection modules emit threat events (evil twin found, ARP spoof detected) that the Alert System renders as real-time notifications and writes to the event log.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:network-protection",
+      "target": "domain:alert-system",
+      "description": "Network Protection sends status events (VPN connected/disconnected, kill switch triggered, firewall applied) to the Alert System for user notification.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:device-anonymity",
+      "target": "domain:alert-system",
+      "description": "Anonymity modules report failures (MAC randomization failed, DNS leak attempt detected) to the Alert System for immediate user notification.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:core-engine",
+      "target": "domain:network-protection",
+      "description": "Core Engine orchestrates startup/shutdown of all Network Protection modules and propagates configuration changes (VPN server, firewall presets).",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:core-engine",
+      "target": "domain:device-anonymity",
+      "description": "Core Engine starts/stops Anonymity modules and handles privilege escalation needed for MAC spoofing and packet capture.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:core-engine",
+      "target": "domain:threat-detection",
+      "description": "Core Engine initializes Detection modules with libpcap access and provides system tray UI for displaying trust scores and detection status.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:core-engine",
+      "target": "domain:alert-system",
+      "description": "Core Engine manages the system tray that displays alerts and provides the event log viewer interface.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "domain:threat-detection",
+      "target": "domain:network-protection",
+      "description": "Detection domain feeds trust scores and threat intelligence back to Network Protection to trigger automatic VPN activation and firewall tightening.",
+      "type": "cross_domain",
+      "direction": "forward",
+      "weight": 0.6
+    }
+  ],
+  "layers": [],
+  "tour": []
+}
