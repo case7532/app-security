@@ -1,4 +1,4 @@
-use app_security::platform::{Platform, NetworkInterface, FirewallRule};
+use app_security::platform::{Platform, NetworkInterface, FirewallRule, WireGuardConfig};
 use async_trait::async_trait;
 
 pub struct MockPlatform {
@@ -87,6 +87,14 @@ impl Platform for MockPlatform {
     }
 
     async fn request_elevation(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn create_wireguard_interface(&self, _config: &WireGuardConfig) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn delete_wireguard_interface(&self, _interface: &str) -> Result<(), String> {
         Ok(())
     }
 }

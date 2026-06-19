@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use crate::platform::{Platform, NetworkInterface, FirewallRule};
+use crate::platform::{Platform, NetworkInterface, FirewallRule, WireGuardConfig};
 
 pub struct WindowsPlatform;
 
@@ -57,6 +57,14 @@ impl Platform for WindowsPlatform {
     }
 
     async fn request_elevation(&self) -> Result<(), String> {
+        Err("Not implemented".to_string())
+    }
+
+    async fn create_wireguard_interface(&self, _config: &WireGuardConfig) -> Result<(), String> {
+        Err("Not implemented".to_string())
+    }
+
+    async fn delete_wireguard_interface(&self, _interface: &str) -> Result<(), String> {
         Err("Not implemented".to_string())
     }
 }

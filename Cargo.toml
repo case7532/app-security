@@ -40,3 +40,7 @@ path = "tests/unit/core/manager_test.rs"
 [[test]]
 name = "platform_validation_test"
 path = "tests/unit/platform/validation_test.rs"
+
+[[test]]
+name = "vpn_test"
+path = "tests/unit/network/vpn_test.rs"

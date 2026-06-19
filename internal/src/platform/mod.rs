@@ -20,6 +20,8 @@ pub trait Platform: Send + Sync {
     async fn remove_firewall_rule(&mut self, rule_id: &str) -> Result<(), String>;
     async fn check_admin_privileges(&self) -> Result<bool, String>;
     async fn request_elevation(&self) -> Result<(), String>;
+    async fn create_wireguard_interface(&self, config: &WireGuardConfig) -> Result<(), String>;
+    async fn delete_wireguard_interface(&self, interface: &str) -> Result<(), String>;
 }
 
 pub fn create_platform() -> Box<dyn Platform> {
