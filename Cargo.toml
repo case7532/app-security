@@ -56,3 +56,11 @@ path = "tests/unit/network/killswitch_test.rs"
 [[test]]
 name = "arp_test"
 path = "tests/unit/detection/arp_test.rs"
+
+[[test]]
+name = "module_lifecycle_test"
+path = "tests/integration/module_lifecycle_test.rs"
+
+[[test]]
+name = "vpn_killswitch_test"
+path = "tests/integration/vpn_killswitch_test.rs"
