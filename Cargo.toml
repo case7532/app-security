@@ -1,0 +1,30 @@
+[package]
+name = "app-security"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+env_logger = "0.11"
+thiserror = "1"
+regex = "1"
+app-security-internal = { path = "internal" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+mockall = "0.11"
+tempfile = "3"
+
+[[test]]
+name = "mod_trait_test"
+path = "tests/unit/core/mod_trait_test.rs"
+
+[[test]]
+name = "validation_test"
+path = "tests/unit/core/validation_test.rs"

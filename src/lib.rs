@@ -1,0 +1,2 @@
+// Re-export internal crate's core module for use by integration tests and external consumers.
+pub use app_security_internal::core;
