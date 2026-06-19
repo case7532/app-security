@@ -40,6 +40,8 @@ pub enum ModuleEvent {
     ModuleStarted { module_id: String },
     ModuleStopped { module_id: String },
     ModuleFailed { module_id: String, error: String },
+    DohConnected { server: String },
+    DnsLeakDetected { dns_server: String, interface: String },
 }
 
 #[async_trait]

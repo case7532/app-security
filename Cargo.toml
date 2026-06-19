@@ -76,3 +76,7 @@ path = "tests/unit/core/manager_event_dispatch_test.rs"
 [[test]]
 name = "toposort_test"
 path = "tests/unit/core/toposort_test.rs"
+
+[[test]]
+name = "dns_test"
+path = "tests/unit/network/dns_test.rs"
