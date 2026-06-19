@@ -80,3 +80,7 @@ path = "tests/unit/core/toposort_test.rs"
 [[test]]
 name = "dns_test"
 path = "tests/unit/network/dns_test.rs"
+
+[[test]]
+name = "dns_leak_test"
+path = "tests/unit/network/dns_leak_test.rs"

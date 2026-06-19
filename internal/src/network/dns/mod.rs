@@ -1,5 +1,6 @@
 pub mod config;
 pub mod doh;
+pub mod leak;
 
 use async_trait::async_trait;
 use std::net::IpAddr;
