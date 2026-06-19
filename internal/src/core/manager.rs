@@ -93,4 +93,19 @@ impl ModuleManager {
     pub async fn get_module_ids(&self) -> Vec<String> {
         self.modules.keys().cloned().collect()
     }
+
+    /// Start event dispatch loop - forwards events to all modules
+    pub async fn start_event_dispatch(&self) {
+        let mut receiver = self.event_bus.subscribe();
+        let modules = self.modules.clone();
+
+        tokio::spawn(async move {
+            while let Ok(event) = receiver.recv().await {
+                for module in modules.values() {
+                    let mut module = module.write().await;
+                    let _ = module.on_event(&event).await;
+                }
+            }
+        });
+    }
 }
