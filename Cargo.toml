@@ -86,5 +86,13 @@ name = "dns_leak_test"
 path = "tests/unit/network/dns_leak_test.rs"
 
 [[test]]
+name = "firewall_test"
+path = "tests/unit/network/firewall_test.rs"
+
+[[test]]
+name = "alert_test"
+path = "tests/unit/alert/alert_test.rs"
+
+[[test]]
 name = "phase2a_test"
 path = "tests/integration/phase2a_test.rs"

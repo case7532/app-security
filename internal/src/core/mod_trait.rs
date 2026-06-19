@@ -42,6 +42,9 @@ pub enum ModuleEvent {
     ModuleFailed { module_id: String, error: String },
     DohConnected { server: String },
     DnsLeakDetected { dns_server: String, interface: String },
+    FirewallRuleAdded { rule_id: String, description: String },
+    FirewallRuleRemoved { rule_id: String },
+    FirewallRuleBlocked { src_ip: String, dst_port: u16 },
 }
 
 #[async_trait]
