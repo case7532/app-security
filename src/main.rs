@@ -1,6 +1,10 @@
 use app_security::core::config::AppConfig;
 use app_security::core::manager::ModuleManager;
 use app_security::core::event_bus::EventBus;
+use app_security::network::vpn::VpnModule;
+use app_security::network::killswitch::KillSwitchModule;
+use app_security::network::dns::DnsModule;
+use app_security::platform;
 
 #[tokio::main]
 async fn main() {
@@ -9,27 +13,33 @@ async fn main() {
 
     let _config = AppConfig::default();
     let event_bus = EventBus::new(1000);
-    let manager = ModuleManager::new(event_bus);
+    let mut manager = ModuleManager::new(event_bus.clone());
 
-    // Register modules
-    // In a full implementation, VPN, KillSwitch, and ArpDetector modules
-    // would be instantiated from config and registered here:
-    //
-    //   let vpn_module = VpnModule::new(&config.modules["vpn"]);
-    //   manager.register_module(Box::new(vpn_module)).await.unwrap();
-    //
-    //   let ks_module = KillSwitchModule::new(&config.modules["killswitch"]);
-    //   manager.register_module(Box::new(ks_module)).await.unwrap();
-    //
-    //   let arp_module = ArpDetectorModule::new(&config.modules["arp_detector"]);
-    //   manager.register_module(Box::new(arp_module)).await.unwrap();
+    manager
+        .register_module(Box::new(VpnModule::new(
+            event_bus.clone(),
+            platform::create_platform(),
+        )))
+        .await
+        .unwrap();
+    manager
+        .register_module(Box::new(KillSwitchModule::new(
+            event_bus.clone(),
+            platform::create_platform(),
+        )))
+        .await
+        .unwrap();
+    manager
+        .register_module(Box::new(DnsModule::new(event_bus.clone())))
+        .await
+        .unwrap();
 
-    // Start modules
     if let Err(e) = manager.start_all().await {
         log::error!("Failed to start modules: {}", e);
     }
 
-    // Wait for shutdown signal
+    manager.start_event_dispatch().await;
+
     tokio::signal::ctrl_c()
         .await
         .expect("Failed to listen for ctrl+c");
