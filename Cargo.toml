@@ -3,6 +3,10 @@ name = "app-security"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+pcap = ["app-security-internal/pcap"]
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
