@@ -1,0 +1,19 @@
+[general]
+auto_start = true
+minimize_to_tray = false
+check_updates = true
+
+[modules.vpn]
+enabled = true
+auto_start = true
+settings = {}
+
+[modules.killswitch]
+enabled = true
+auto_start = true
+settings = {}
+
+[modules.arp_detector]
+enabled = true
+auto_start = true
+settings = {}

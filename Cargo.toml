@@ -64,3 +64,7 @@ path = "tests/integration/module_lifecycle_test.rs"
 [[test]]
 name = "vpn_killswitch_test"
 path = "tests/integration/vpn_killswitch_test.rs"
+
+[[test]]
+name = "config_test"
+path = "tests/unit/core/config_test.rs"
