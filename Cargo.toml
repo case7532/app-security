@@ -36,3 +36,7 @@ path = "tests/unit/core/event_bus_test.rs"
 [[test]]
 name = "manager_test"
 path = "tests/unit/core/manager_test.rs"
+
+[[test]]
+name = "platform_validation_test"
+path = "tests/unit/platform/validation_test.rs"
