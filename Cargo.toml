@@ -28,3 +28,11 @@ path = "tests/unit/core/mod_trait_test.rs"
 [[test]]
 name = "validation_test"
 path = "tests/unit/core/validation_test.rs"
+
+[[test]]
+name = "event_bus_test"
+path = "tests/unit/core/event_bus_test.rs"
+
+[[test]]
+name = "manager_test"
+path = "tests/unit/core/manager_test.rs"
